@@ -1,0 +1,14 @@
+<resources>
+    <string name="app_name">" MusicBash"</string>
+    <string name="play">">"</string>
+    <string name="pause">"||"</string>
+    <string name="fastF">">>"</string>
+    <string name="fastB"> "back" </string>
+    <string name="pre">"pre"</string>
+    <string name="toolbarT">"MusicBash"</string>
+    <string name="toolbatST">Subtitle</string>
+    <string name="searchable">searchable</string>
+    <string name="app_search">search</string>
+
+
+</resources>
