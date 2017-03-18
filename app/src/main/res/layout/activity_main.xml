@@ -9,13 +9,11 @@
 
     <include layout="@layout/toolbar"
         android:id="@+id/my_toolbar1"/>
-    <ListView
-        android:divider="@null"
-        android:dividerHeight="0dp"
+    <android.support.v7.widget.RecyclerView
         android:layout_width="match_parent"
         android:layout_height="match_parent"
-        android:layout_centerVertical="true"
         android:id="@+id/lvPlaylist"
+        app:layoutManager="LinearLayoutManager"
         android:layout_below="@id/my_toolbar1"
         />
     <android.support.design.widget.FloatingActionButton

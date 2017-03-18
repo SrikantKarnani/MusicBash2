@@ -3,6 +3,7 @@
     package="com.example.android.musicbash">
 
     <uses-permission android:name="android.permission.READ_EXTERNAL_STORAGE" />
+    <uses-permission android:name="android.permission.WRITE_EXTERNAL_STORAGE"/>
 
     <application
         android:allowBackup="true"
@@ -29,6 +30,8 @@
             android:launchMode="singleTop"
             >
         </activity>
+        <service android:name=".PlayerService"
+            android:exported="false"/>
     </application>
 
 </manifest>

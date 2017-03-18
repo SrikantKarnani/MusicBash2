@@ -7,6 +7,15 @@
     <item android:icon="@color/colorPrimaryDark"
         android:id="@+id/about"
         android:title="About"/>
+    <item android:icon="@color/colorPrimaryDark"
+        android:id="@+id/export"
+        android:title="Export To JSON"/>
+    <item android:icon="@color/colorPrimaryDark"
+        android:id="@+id/importJSON"
+        android:title="Import From JSON"/>
+    <item android:icon="@color/colorPrimaryDark"
+        android:id="@+id/sortDate"
+        android:title="Last Added"/>
     <item android:icon="@drawable/ic_searchable"
         app:showAsAction="ifRoom|collapseActionView"
         android:id="@+id/search_bar"

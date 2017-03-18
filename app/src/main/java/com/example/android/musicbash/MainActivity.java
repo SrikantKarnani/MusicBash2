@@ -1,18 +1,26 @@
 package com.example.android.musicbash;
 
+import android.Manifest;
 import android.app.Activity;
 import android.app.SearchManager;
 import android.content.ComponentName;
 import android.content.Context;
 import android.content.ServiceConnection;
+import android.content.SharedPreferences;
+import android.content.pm.PackageManager;
+import android.database.Cursor;
 import android.graphics.Bitmap;
 import android.graphics.BitmapFactory;
 import android.graphics.Color;
 import android.media.Image;
 import android.media.MediaMetadataRetriever;
 import android.os.IBinder;
+import android.os.Parcelable;
+import android.preference.PreferenceManager;
+import android.support.annotation.NonNull;
 import android.support.design.widget.FloatingActionButton;
 import android.support.design.widget.Snackbar;
+import android.support.v4.app.ActivityCompat;
 import android.support.v4.content.ContextCompat;
 import android.support.v7.app.AppCompatActivity;
 
@@ -21,9 +29,11 @@ import android.os.Environment;
 import android.provider.MediaStore;
 import android.support.v7.app.AppCompatActivity;
 import android.os.Bundle;
+import android.support.v7.widget.RecyclerView;
 import android.support.v7.widget.SearchView;
 import android.support.v7.widget.Toolbar;
 import android.text.TextUtils;
+import android.util.Log;
 import android.view.Menu;
 import android.view.MenuItem;
 import android.view.View;
@@ -32,45 +42,59 @@ import android.view.WindowManager;
 import android.widget.Adapter;
 import android.widget.AdapterView;
 import android.widget.ArrayAdapter;
+import android.widget.CheckBox;
 import android.widget.ImageButton;
 import android.widget.ImageView;
 import android.widget.ListView;
 import android.widget.Toast;
 
 import java.io.File;
+import java.io.Serializable;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collections;
+import java.util.Comparator;
+import java.util.List;
 import java.util.Random;
+import java.util.prefs.PreferenceChangeEvent;
 
+import static android.R.attr.breadCrumbShortTitle;
+import static android.R.attr.cursorVisible;
 import static android.R.attr.displayOptions;
 import static android.R.attr.dividerHeight;
+import static android.R.attr.permission;
+import static android.R.attr.theme;
 import static android.media.CamcorderProfile.get;
 public class MainActivity extends AppCompatActivity {
-    ListView lv;
-    String[] items;
+    private static final int REQUEST_READABLE_CODE = 144 ;
+    private static final int REQUEST_PERMISSION_WRITE = 1001;
+    RecyclerView lv;
+    List<String> songsName;
     SearchView searchView;
     Boolean shuf = false;
-    ArrayAdapter<String> ar;
-    ArrayList<File> mySongs;
+    List<songs> songsObject;
     Intent play;
+    recylcerAdapter ar;
+    Cursor cursor;
+    static int type = 1;
+    private boolean permissionGranted;
+    private String Sorting_order = "sorting_order";
+    private String orderActivity = "order";
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
-        Window window = this.getWindow();
-        window.addFlags(WindowManager.LayoutParams.FLAG_DRAWS_SYSTEM_BAR_BACKGROUNDS);
-        window.clearFlags(WindowManager.LayoutParams.FLAG_TRANSLUCENT_STATUS);
-        window.setStatusBarColor(ContextCompat.getColor(this, R.color.black));
         super.onCreate(savedInstanceState);
+        while (!checkPermissions()){};
         setContentView(R.layout.activity_main);
         FloatingActionButton fab = (FloatingActionButton) findViewById(R.id.myFAB);
         fab.setOnClickListener(new View.OnClickListener() {
             @Override
             public void onClick(View view) {
                 Random r = new Random();
-                int position = r.nextInt(items.length) + 1;
+                int position = r.nextInt(songsName.size()) + 1;
                 play = new Intent(getApplicationContext(), Player.class);
                 shuf = true;
-                startActivity(play.putExtra("pos", position).putExtra("songList", mySongs).putExtra("shuffle", shuf));
+                startActivity(play.putExtra("pos", position).putExtra("songList", (Serializable) songsObject).putExtra("shuffle", shuf));
             }
 
         });
@@ -79,49 +103,146 @@ public class MainActivity extends AppCompatActivity {
         getSupportActionBar().setDisplayShowTitleEnabled(true);
         getSupportActionBar().setTitle(R.string.toolbarT);
         getSupportActionBar().setSubtitle(R.string.toolbatST);
-        lv = (ListView) findViewById(R.id.lvPlaylist);
-        mySongs = findSongs(Environment.getExternalStorageDirectory());
-        items = new String[mySongs.size()];
-        for (int i = 0; i < mySongs.size(); i++) {
-            items[i] = mySongs.get(i).getName().toString().replace(".mp3", "");
-        }
-        ar = new ArrayAdapter<String>(
-                getApplicationContext(), R.layout.song_layout, R.id.textView2, items
-        ) {
+        lv = (RecyclerView) findViewById(R.id.lvPlaylist);
+        String selection = MediaStore.Audio.Media.IS_MUSIC + "!= 0";
+        String[] projection = {
+                MediaStore.Audio.Media._ID,
+                MediaStore.Audio.Media.TITLE,
+                MediaStore.Audio.Media.ALBUM,
+                MediaStore.Audio.Media.DATA,
+                MediaStore.Audio.Media.DURATION,
+                MediaStore.Audio.Media.ALBUM_ID
         };
-        lv.setAdapter(ar);
-        lv.setOnItemClickListener(new AdapterView.OnItemClickListener() {
+        String orderBy;
+        savedInstanceState.putInt(Sorting_order,type);
+        switch (type){
+            case 0:
+                orderBy = MediaStore.Audio.Media.TITLE + " ASC";
+                cursor = this.managedQuery(
+                        MediaStore.Audio.Media.EXTERNAL_CONTENT_URI,
+                        projection,
+                        selection,
+                        null,
+                        orderBy
+                );
+                break;
+            case 1:
+                orderBy = MediaStore.Audio.Media.DATE_ADDED + " DESC";
+                cursor = this.managedQuery(
+                        MediaStore.Audio.Media.EXTERNAL_CONTENT_URI,
+                        projection,
+                        selection,
+                        null,
+                        orderBy
+                );
+                break;
+            case 2:
+                orderBy = MediaStore.Audio.Media.DISPLAY_NAME + "ASC";
+                cursor = this.managedQuery(
+                        MediaStore.Audio.Media.EXTERNAL_CONTENT_URI,
+                        projection,
+                        selection,
+                        null,
+                        orderBy
+                );
+                break;
+            default:
+                cursor = this.managedQuery(
+                        MediaStore.Audio.Media.EXTERNAL_CONTENT_URI,
+                        projection,
+                        selection,
+                        null,
+                        null
+                );
+                break;
+        }
 
+        songsObject = new ArrayList<>();
+        songsName = new ArrayList<>();
+        addSongs(cursor);
+        Comparator comp = new Comparator<String>() {
             @Override
-            public void onItemClick(AdapterView<?> parent, View view, int position, long id) {
-                for (int i = 0; i < mySongs.size(); i++) {
-                    if ((ar.getItem(position) + ".mp3").equals(mySongs.get(i).getName().toString())) {
-                        position = i;
-                        break;
-                    }
-                }
-                play = new Intent(getApplicationContext(), Player.class);
-                shuf = false;
-                startActivity(play.putExtra("pos", position).putExtra("songList", mySongs).putExtra("shuffle", shuf));
+            public int compare(String o1, String o2) {
+                return o1.toLowerCase().compareTo(o2.toLowerCase());
             }
-        });
+        };
+        Collections.sort(songsName, comp);
+
+        ar = new recylcerAdapter(this, R.layout.song_layout, songsName);
+        lv.setAdapter(ar);
+        lv.setNestedScrollingEnabled(false);
     }
+        /* Checks if external storage is available for read and write */
+        public boolean isExternalStorageWritable() {
+            String state = Environment.getExternalStorageState();
+            return Environment.MEDIA_MOUNTED.equals(state);
+        }
 
-    public ArrayList<File> findSongs(File root) {
-        ArrayList<File> al = new ArrayList<File>();
-        File[] files = root.listFiles();
-        for (File singleFile : files) {
-            if (singleFile.getName().startsWith(".") || singleFile.getName().equals("Android")) {
+    /* Checks if external storage is available to at least read */
+        public boolean isExternalStorageReadable() {
+            String state = Environment.getExternalStorageState();
+            return (Environment.MEDIA_MOUNTED.equals(state) ||
+                    Environment.MEDIA_MOUNTED_READ_ONLY.equals(state));
+        }
 
-            } else if (singleFile.isDirectory() && !singleFile.isHidden()) {
-                al.addAll(findSongs(singleFile));
+        // Initiate request for permissions.
+        private boolean checkPermissions() {
+
+            if (!isExternalStorageReadable() || !isExternalStorageWritable()) {
+                Toast.makeText(this, "This app only works on devices with usable external storage",
+                        Toast.LENGTH_SHORT).show();
+                return false;
+            }
+            int permission = ContextCompat.checkSelfPermission(this,
+                    Manifest.permission.READ_EXTERNAL_STORAGE);
+            if (permission != PackageManager.PERMISSION_GRANTED) {
+                makeRequest();
+            }
+            int permissionCheck = ContextCompat.checkSelfPermission(this,
+                    Manifest.permission.WRITE_EXTERNAL_STORAGE);
+            if (permissionCheck != PackageManager.PERMISSION_GRANTED) {
+                ActivityCompat.requestPermissions(this,
+                        new String[]{Manifest.permission.WRITE_EXTERNAL_STORAGE},
+                        REQUEST_PERMISSION_WRITE);
+                return false;
             } else {
-                if (singleFile.getName().endsWith(".mp3")) {
-                    al.add(singleFile);
-                }
+                return true;
             }
         }
-        return al;
+
+        // Handle permissions result
+        @Override
+        public void onRequestPermissionsResult(int requestCode,
+        @NonNull String permissions[],
+        @NonNull int[] grantResults) {
+            switch (requestCode) {
+                case REQUEST_PERMISSION_WRITE:
+                    if (grantResults.length > 0
+                            && grantResults[0] == PackageManager.PERMISSION_GRANTED) {
+                        permissionGranted = true;
+                        Toast.makeText(this, "External storage permission granted",
+                                Toast.LENGTH_SHORT).show();
+                    } else {
+                        Toast.makeText(this, "You must grant permission!", Toast.LENGTH_SHORT).show();
+                    }
+                    break;
+                case REQUEST_READABLE_CODE:
+                    if (grantResults.length > 0
+                            && grantResults[1] == PackageManager.PERMISSION_GRANTED) {
+                        permissionGranted = true;
+                        Toast.makeText(this, "External storage permission granted",
+                                Toast.LENGTH_SHORT).show();
+                    } else {
+                        Toast.makeText(this, "You must grant permission!", Toast.LENGTH_SHORT).show();
+                    }
+                    break;
+            }
+        }
+
+    protected void makeRequest() {
+        ActivityCompat.requestPermissions(this,
+                new String[]{Manifest.permission.READ_EXTERNAL_STORAGE},
+                REQUEST_READABLE_CODE);
     }
 
     @Override
@@ -138,11 +259,26 @@ public class MainActivity extends AppCompatActivity {
 
             @Override
             public boolean onQueryTextChange(String newText) {
-                ar.getFilter().filter(newText);
+
                 return false;
             }
         });
         return super.onCreateOptionsMenu(menu);
+    }
+    void addSongs(Cursor cur){
+        cur.moveToFirst();
+        do {
+            songsObject.add(new songs(cur.getString(cur.getColumnIndex(MediaStore.Audio.Media._ID)),
+                    cur.getString(cur.getColumnIndex(MediaStore.Audio.Media.TITLE)),
+                    cur.getString(cur.getColumnIndex(MediaStore.Audio.Media.ALBUM)),
+                    cur.getString(cur.getColumnIndex(MediaStore.Audio.Media.DATA)),
+                    cur.getString(cur.getColumnIndex(MediaStore.Audio.Media.DURATION)),
+                    cur.getString(cur.getColumnIndex(MediaStore.Audio.Media.ALBUM_ID))
+            ));
+            songsName.add(cur.getString(cur.getColumnIndex(MediaStore.Audio.Media.TITLE)));
+        }while (cur.moveToNext());
+
+
     }
 
     @Override
@@ -154,7 +290,19 @@ public class MainActivity extends AppCompatActivity {
             case R.id.settings:
                 Toast.makeText(MainActivity.this, "Settings Under Construction", Toast.LENGTH_SHORT).show();
                 break;
+            case R.id.export:
+                boolean isExported = JSONHelper.exportToJSON(this,songsObject);
+                break;
+            case R.id.importJSON:
+                boolean isr = JSONHelper.exportTJSON(this,songsName);
+                break;
+            case R.id.sortDate:
+                type = 1;
+                Intent intent = getIntent();
+                finish();
+                startActivity(intent);
+
         }
         return super.onOptionsItemSelected(item);
     }
-}
+    }

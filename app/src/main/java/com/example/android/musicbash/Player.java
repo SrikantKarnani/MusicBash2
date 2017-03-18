@@ -9,13 +9,16 @@ import android.content.ServiceConnection;
 import android.database.Cursor;
 import android.graphics.Bitmap;
 import android.graphics.BitmapFactory;
+import android.graphics.BlurMaskFilter;
 import android.graphics.Canvas;
 import android.graphics.Color;
 import android.graphics.ColorFilter;
+import android.graphics.drawable.BitmapDrawable;
 import android.graphics.drawable.Drawable;
 import android.media.MediaMetadataRetriever;
 import android.media.MediaPlayer;
 import android.net.Uri;
+import android.os.Build;
 import android.os.Handler;
 import android.os.CountDownTimer;
 import android.os.IBinder;
@@ -29,55 +32,60 @@ import android.view.KeyEvent;
 import android.view.View;
 import android.widget.ImageButton;
 import android.widget.ImageView;
+import android.widget.RelativeLayout;
 import android.widget.SeekBar;
 import android.widget.TextView;
 import android.widget.Toast;
 
+import com.bumptech.glide.Glide;
+import com.bumptech.glide.load.Transformation;
+import com.bumptech.glide.load.engine.bitmap_recycle.BitmapPool;
+import com.bumptech.glide.load.resource.bitmap.BitmapTransformation;
+import com.bumptech.glide.load.resource.drawable.GlideDrawable;
+import com.bumptech.glide.request.animation.GlideAnimation;
+import com.bumptech.glide.request.target.SimpleTarget;
+
 import java.io.File;
 import java.io.FileNotFoundException;
+import java.io.IOException;
 import java.io.InputStream;
+import java.io.Serializable;
 import java.util.ArrayList;
+import java.util.Collections;
+import java.util.List;
 import java.util.Random;
 import java.util.concurrent.TimeUnit;
 import java.util.logging.LogRecord;
+
+import de.hdodenhof.circleimageview.CircleImageView;
+import jp.wasabeef.glide.transformations.BlurTransformation;
 
 import static android.R.attr.bitmap;
 import static android.R.attr.data;
 import static android.R.attr.duration;
 import static android.R.attr.id;
 import static android.R.attr.mode;
+import static android.R.attr.resource;
 import static android.icu.lang.UCharacter.GraphemeClusterBreak.T;
 import static com.example.android.musicbash.R.id.next;
 import static com.example.android.musicbash.R.id.playerToolbar;
+import static com.example.android.musicbash.R.id.seekBar;
 
 public class Player extends AppCompatActivity implements View.OnClickListener {
     static MediaPlayer mp;
-    ArrayList<File> mySongs;
+    List<songs> mySongs;
     SeekBar sb;
     int position;
     Toolbar playerToolbar;
+    RelativeLayout rl;
     Boolean mode;
-
-    Thread updateSeekBar = new Thread() {
-        @Override
-        public void run() {
-            int total = mp.getDuration();
-            int current = 0;
-            while (current < total) {
-                try {
-                    sleep(500);
-                    mHandler.post(updateUI);
-                    current = mp.getCurrentPosition();
-                    sb.setProgress(current);
-                } catch (InterruptedException e) {
-                    e.printStackTrace();
-                } catch (Exception e) {
-                    e.printStackTrace();
-                }
-            }
-        }
-    };
+    Context context;
+    Thread updateSeekBar;
+    Intent inte;
+    Uri sArtworkUri = Uri.parse("content://media/external/audio/albumart");
+    CircleImageView im;
     TextView tv1, tv2;
+    Handler mHandler;
     ImageButton btPlay, btPrevious, btNext, btfastB, btfastF;
     MediaPlayer.OnCompletionListener next = new MediaPlayer.OnCompletionListener() {
         @Override
@@ -85,10 +93,10 @@ public class Player extends AppCompatActivity implements View.OnClickListener {
             playN();
         }
     };
-
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
+        mySongs = new ArrayList<>();
         setContentView(R.layout.activity_player);
         tv1 = (TextView) findViewById(R.id.timeSpent);
         tv2 = (TextView) findViewById(R.id.leftTime);
@@ -97,47 +105,103 @@ public class Player extends AppCompatActivity implements View.OnClickListener {
         btNext = (ImageButton) findViewById(R.id.next);
         btfastB = (ImageButton) findViewById(R.id.fastB);
         btfastF = (ImageButton) findViewById(R.id.fastF);
-        sb = (SeekBar) findViewById(R.id.seekBar);
+        rl = (RelativeLayout) findViewById(R.id.activity_player);
+        sb = (SeekBar) findViewById(seekBar);
+        mHandler = new Handler();
+        updateSeekBar = new Thread() {
+            @Override
+            public void run() {
+                int total = mp.getDuration();
+                int current = 0;
+                sb.setMax(total);
+                while (current < total) {
+                    try {
+                        sleep(100);
+                        mHandler.post(updateUI);
+                        current = mp.getCurrentPosition();
+                        sb.setProgress(current);
+                    } catch (InterruptedException e) {
+                        e.printStackTrace();
+                    } catch (Exception e) {
+                        e.printStackTrace();
+                    }
+                }
+            }
+        };
         if (mp != null) {
-            mp.stop();
-            mp.release();
+            if (mp.isPlaying()) {
+                mp.stop();
+                mp.release();
+            }
         }
-        playerToolbar = (Toolbar) findViewById(R.id.playerToolbar);
-        btPlay.setOnClickListener(this);
-        btPrevious.setOnClickListener(this);
-        btNext.setOnClickListener(this);
-        btfastF.setOnClickListener(this);
-        btfastB.setOnClickListener(this);
-        Intent intent = getIntent();
-        Bundle b = intent.getExtras();
-        mySongs = (ArrayList) b.getParcelableArrayList("songList");
-        position = b.getInt("pos", 0);
-        mode = b.getBoolean("shuffle", false);
-        Uri uri = Uri.parse(mySongs.get(position).toString());
-        mp = MediaPlayer.create(getApplicationContext(), uri);
-        sb.setMax(mp.getDuration());
+            im = (CircleImageView) findViewById(R.id.thumb);
+            context = getApplicationContext();
+            playerToolbar = (Toolbar) findViewById(R.id.playerToolbar);
+            btPlay.setOnClickListener(this);
+            btPrevious.setOnClickListener(this);
+            btNext.setOnClickListener(this);
+            btfastF.setOnClickListener(this);
+            btfastB.setOnClickListener(this);
+            Intent intent = getIntent();
+            Bundle b = intent.getExtras();
+            mySongs = (List) intent.getSerializableExtra("songList");
+            position = b.getInt("position") ;
+            if (position == -1) {
+                position = mySongs.size() - 1;
+            }
+            mode = b.getBoolean("shuffle", false);
+            Uri uri = Uri.parse(mySongs.get(position).getData());
+            mp = new MediaPlayer();
+            try {
+                mp.setDataSource(getApplicationContext(), uri);
+            } catch (IOException e) {
+                e.printStackTrace();
+            }
+        try {
+            mp.prepare();
+        } catch (IOException e) {
+            e.printStackTrace();
+        }
+//        mp.start();
+        startServiceMethod(position);
         updateSeekBar.start();
-        play();
-        tv2.setText(updateTime(mp));
-        playerToolbar.setTitle(mySongs.get(position).getName());
-        mp.setOnCompletionListener(next);
-        sb.setOnSeekBarChangeListener(new SeekBar.OnSeekBarChangeListener() {
-            @Override
-            public void onProgressChanged(SeekBar seekBar, int progress, boolean fromUser) {
-            }
 
-            @Override
-            public void onStartTrackingTouch(SeekBar seekBar) {
+        long albumID = Integer.parseInt(mySongs.get(position).getAlbumId());
+            Uri uriArt = ContentUris.withAppendedId(sArtworkUri, albumID);
+            Glide.with(context).load(uriArt).error(R.mipmap.music)
+                    .crossFade().centerCrop().into(im);
 
-            }
+            Glide.with(context).load(uriArt).error(R.mipmap.music).bitmapTransform(new BlurTransformation(context))
+                    .crossFade().into(new SimpleTarget<GlideDrawable>() {
+                @Override
+                public void onResourceReady(GlideDrawable resource,
+                                            GlideAnimation<? super GlideDrawable> glideAnimation) {
+                    Drawable drawable = resource;
+                    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.JELLY_BEAN) {
+                        rl.setBackground(drawable);
+                    }
+                }
+            });
+            tv2.setText(updateTime(mp));
+            playerToolbar.setTitle(mySongs.get(position).getTitle());
+            mp.setOnCompletionListener(next);
+            sb.setOnSeekBarChangeListener(new SeekBar.OnSeekBarChangeListener() {
+                @Override
+                public void onProgressChanged(SeekBar seekBar, int progress, boolean fromUser) {
+                }
 
-            @Override
-            public void onStopTrackingTouch(SeekBar seekBar) {
-                mHandler.post(updateUI);
-                mp.seekTo(seekBar.getProgress());
-            }
-        });
-    }
+                @Override
+                public void onStartTrackingTouch(SeekBar seekBar) {
+
+                }
+
+                @Override
+                public void onStopTrackingTouch(SeekBar seekBar) {
+                    mHandler.post(updateUI);
+                    mp.seekTo(seekBar.getProgress());
+                }
+            });
+        }
 
     @Override
     public void onClick(View v) {
@@ -197,13 +261,30 @@ public class Player extends AppCompatActivity implements View.OnClickListener {
         } else {
             position = (position + 1) % mySongs.size();
         }
-        Uri uri2 = Uri.parse(mySongs.get(position).toString());
+        long  albumID = Integer.parseInt(mySongs.get(position).getAlbumId());
+        Uri uriArt = ContentUris.withAppendedId(sArtworkUri, albumID);
+        Glide.with(context).load(uriArt).error(R.mipmap.music)
+                .crossFade().centerCrop().into(im);
+        Glide.with(context).load(uriArt).error(R.mipmap.music).bitmapTransform(new BlurTransformation(context))
+                .crossFade().into(new SimpleTarget<GlideDrawable>() {
+            @Override
+            public void onResourceReady(GlideDrawable resource,
+                                        GlideAnimation<? super GlideDrawable> glideAnimation) {
+                Drawable drawable = resource;
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.JELLY_BEAN) {
+                    rl.setBackground(drawable);
+                }
+            }
+        });
+        startServiceMethod(position);
+        Uri uri2 = Uri.parse(mySongs.get(position).getData());
         mp = MediaPlayer.create(getApplicationContext(), uri2);
         sb.setMax(mp.getDuration());
         btPlay.setImageResource(R.drawable.pause);
         tv2.setText(updateTime(mp));
-        playerToolbar.setTitle(mySongs.get(position).getName());
-        mp.start();
+        playerToolbar.setTitle(mySongs.get(position).getTitle());
+//        mp.start();
+        updateSeekBar.start();
         mp.setOnCompletionListener(next);
     }
 
@@ -212,13 +293,30 @@ public class Player extends AppCompatActivity implements View.OnClickListener {
             mp.stop();
             mp.release();
             position = (position - 1 < 0) ? mySongs.size() - 1 : position - 1;
-            Uri uri1 = Uri.parse(mySongs.get(position).toString());
+            long  albumID = Integer.parseInt(mySongs.get(position).getAlbumId());
+            Uri uriArt = ContentUris.withAppendedId(sArtworkUri, albumID);
+            Glide.with(context).load(uriArt).error(R.mipmap.music)
+                    .crossFade().centerCrop().into(im);
+            Glide.with(context).load(uriArt).error(R.mipmap.music).bitmapTransform(new BlurTransformation(context))
+                    .crossFade().into(new SimpleTarget<GlideDrawable>() {
+                @Override
+                public void onResourceReady(GlideDrawable resource,
+                                            GlideAnimation<? super GlideDrawable> glideAnimation) {
+                    Drawable drawable = resource;
+                    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.JELLY_BEAN) {
+                        rl.setBackground(drawable);
+                    }
+                }
+            });
+            startServiceMethod(position);
+            Uri uri1 = Uri.parse(mySongs.get(position).getData());
             mp = MediaPlayer.create(getApplicationContext(), uri1);
             sb.setMax(mp.getDuration());
-            mp.start();
+            updateSeekBar.start();
+//            mp.start();
             btPlay.setImageResource(R.drawable.pause);
             tv2.setText(updateTime(mp));
-            playerToolbar.setTitle(mySongs.get(position).getName());
+            playerToolbar.setTitle(mySongs.get(position).getTitle());
             mp.setOnCompletionListener(next);
         } catch (Exception e) {
             e.printStackTrace();
@@ -242,5 +340,8 @@ public class Player extends AppCompatActivity implements View.OnClickListener {
             }
         }
     };
-    Handler mHandler = new Handler();
+    void startServiceMethod(int pos){
+        inte = new Intent(this,PlayerService.class);
+        startService(inte);
+    }
 }
