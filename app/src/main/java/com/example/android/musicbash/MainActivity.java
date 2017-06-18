@@ -62,6 +62,7 @@ import static android.R.attr.breadCrumbShortTitle;
 import static android.R.attr.cursorVisible;
 import static android.R.attr.displayOptions;
 import static android.R.attr.dividerHeight;
+import static android.R.attr.name;
 import static android.R.attr.permission;
 import static android.R.attr.theme;
 import static android.media.CamcorderProfile.get;
@@ -69,17 +70,12 @@ public class MainActivity extends AppCompatActivity {
     private static final int REQUEST_READABLE_CODE = 144 ;
     private static final int REQUEST_PERMISSION_WRITE = 1001;
     RecyclerView lv;
-    List<String> songsName;
-    SearchView searchView;
     Boolean shuf = false;
     List<songs> songsObject;
     Intent play;
     recylcerAdapter ar;
     Cursor cursor;
-    static int type = 1;
     private boolean permissionGranted;
-    private String Sorting_order = "sorting_order";
-    private String orderActivity = "order";
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -91,7 +87,7 @@ public class MainActivity extends AppCompatActivity {
             @Override
             public void onClick(View view) {
                 Random r = new Random();
-                int position = r.nextInt(songsName.size()) + 1;
+                int position = r.nextInt(songsObject.size()) + 1;
                 play = new Intent(getApplicationContext(), Player.class);
                 shuf = true;
                 startActivity(play.putExtra("pos", position).putExtra("songList", (Serializable) songsObject).putExtra("shuffle", shuf));
@@ -113,11 +109,7 @@ public class MainActivity extends AppCompatActivity {
                 MediaStore.Audio.Media.DURATION,
                 MediaStore.Audio.Media.ALBUM_ID
         };
-        String orderBy;
-        savedInstanceState.putInt(Sorting_order,type);
-        switch (type){
-            case 0:
-                orderBy = MediaStore.Audio.Media.TITLE + " ASC";
+        String orderBy = MediaStore.Audio.Media.TITLE + " ASC";
                 cursor = this.managedQuery(
                         MediaStore.Audio.Media.EXTERNAL_CONTENT_URI,
                         projection,
@@ -125,50 +117,18 @@ public class MainActivity extends AppCompatActivity {
                         null,
                         orderBy
                 );
-                break;
-            case 1:
-                orderBy = MediaStore.Audio.Media.DATE_ADDED + " DESC";
-                cursor = this.managedQuery(
-                        MediaStore.Audio.Media.EXTERNAL_CONTENT_URI,
-                        projection,
-                        selection,
-                        null,
-                        orderBy
-                );
-                break;
-            case 2:
-                orderBy = MediaStore.Audio.Media.DISPLAY_NAME + "ASC";
-                cursor = this.managedQuery(
-                        MediaStore.Audio.Media.EXTERNAL_CONTENT_URI,
-                        projection,
-                        selection,
-                        null,
-                        orderBy
-                );
-                break;
-            default:
-                cursor = this.managedQuery(
-                        MediaStore.Audio.Media.EXTERNAL_CONTENT_URI,
-                        projection,
-                        selection,
-                        null,
-                        null
-                );
-                break;
-        }
 
         songsObject = new ArrayList<>();
-        songsName = new ArrayList<>();
         addSongs(cursor);
-        Comparator comp = new Comparator<String>() {
-            @Override
-            public int compare(String o1, String o2) {
-                return o1.toLowerCase().compareTo(o2.toLowerCase());
-            }
-        };
-        Collections.sort(songsName, comp);
+//        Comparator comp = new Comparator<String>() {
+//            @Override
+//            public int compare(String o1, String o2) {
+//                return o1.toLowerCase().compareTo(o2.toLowerCase());
+//            }
+//        };
+//        Collections.sort(songsName, comp);
 
-        ar = new recylcerAdapter(this, R.layout.song_layout, songsName);
+        ar = new recylcerAdapter(this, songsObject);
         lv.setAdapter(ar);
         lv.setNestedScrollingEnabled(false);
     }
@@ -249,7 +209,7 @@ public class MainActivity extends AppCompatActivity {
     public boolean onCreateOptionsMenu(Menu menu) {
         getMenuInflater().inflate(R.menu.main_menu, menu);
         SearchView searchView1 = (SearchView) menu.findItem(R.id.search_bar).getActionView();
-        SearchManager searchManager = (SearchManager) getSystemService(SEARCH_SERVICE);
+        final SearchManager searchManager = (SearchManager) getSystemService(SEARCH_SERVICE);
         searchView1.setSearchableInfo(searchManager.getSearchableInfo(getComponentName()));
         searchView1.setOnQueryTextListener(new SearchView.OnQueryTextListener() {
             @Override
@@ -259,8 +219,15 @@ public class MainActivity extends AppCompatActivity {
 
             @Override
             public boolean onQueryTextChange(String newText) {
-
-                return false;
+                newText = newText.toLowerCase();
+                List<songs> newList = new ArrayList<>();
+                for(songs name : songsObject){
+                    if((name.getTitle().toLowerCase()).contains(newText)){
+                        newList.add(name);
+                    }
+                }
+                ar.filter(newList);
+                return true;
             }
         });
         return super.onCreateOptionsMenu(menu);
@@ -275,7 +242,6 @@ public class MainActivity extends AppCompatActivity {
                     cur.getString(cur.getColumnIndex(MediaStore.Audio.Media.DURATION)),
                     cur.getString(cur.getColumnIndex(MediaStore.Audio.Media.ALBUM_ID))
             ));
-            songsName.add(cur.getString(cur.getColumnIndex(MediaStore.Audio.Media.TITLE)));
         }while (cur.moveToNext());
 
 
@@ -294,15 +260,10 @@ public class MainActivity extends AppCompatActivity {
                 boolean isExported = JSONHelper.exportToJSON(this,songsObject);
                 break;
             case R.id.importJSON:
-                boolean isr = JSONHelper.exportTJSON(this,songsName);
                 break;
             case R.id.sortDate:
-                type = 1;
-                Intent intent = getIntent();
-                finish();
-                startActivity(intent);
 
         }
         return super.onOptionsItemSelected(item);
     }
-    }
+}

@@ -24,12 +24,16 @@ import android.os.CountDownTimer;
 import android.os.IBinder;
 import android.provider.MediaStore;
 import android.support.annotation.Nullable;
+import android.support.v4.content.ContextCompat;
 import android.support.v7.app.AppCompatActivity;
 import android.os.Bundle;
+import android.support.v7.graphics.Palette;
 import android.support.v7.widget.Toolbar;
 import android.util.Log;
 import android.view.KeyEvent;
 import android.view.View;
+import android.view.Window;
+import android.view.WindowManager;
 import android.widget.ImageButton;
 import android.widget.ImageView;
 import android.widget.RelativeLayout;
@@ -40,10 +44,16 @@ import android.widget.Toast;
 import com.bumptech.glide.Glide;
 import com.bumptech.glide.load.Transformation;
 import com.bumptech.glide.load.engine.bitmap_recycle.BitmapPool;
+import com.bumptech.glide.load.resource.bitmap.BitmapDrawableResource;
 import com.bumptech.glide.load.resource.bitmap.BitmapTransformation;
+import com.bumptech.glide.load.resource.bitmap.CenterCrop;
+import com.bumptech.glide.load.resource.bitmap.GlideBitmapDrawable;
 import com.bumptech.glide.load.resource.drawable.GlideDrawable;
+import com.bumptech.glide.request.Request;
+import com.bumptech.glide.request.RequestListener;
 import com.bumptech.glide.request.animation.GlideAnimation;
 import com.bumptech.glide.request.target.SimpleTarget;
+import com.bumptech.glide.request.target.Target;
 
 import java.io.File;
 import java.io.FileNotFoundException;
@@ -59,6 +69,10 @@ import java.util.logging.LogRecord;
 
 import de.hdodenhof.circleimageview.CircleImageView;
 import jp.wasabeef.glide.transformations.BlurTransformation;
+import jp.wasabeef.glide.transformations.CropCircleTransformation;
+import jp.wasabeef.glide.transformations.gpu.BrightnessFilterTransformation;
+import jp.wasabeef.glide.transformations.gpu.KuwaharaFilterTransformation;
+import jp.wasabeef.glide.transformations.gpu.ToonFilterTransformation;
 
 import static android.R.attr.bitmap;
 import static android.R.attr.data;
@@ -82,8 +96,8 @@ public class Player extends AppCompatActivity implements View.OnClickListener {
     Context context;
     Thread updateSeekBar;
     Intent inte;
+    Bitmap bmp;
     Uri sArtworkUri = Uri.parse("content://media/external/audio/albumart");
-    CircleImageView im;
     TextView tv1, tv2;
     Handler mHandler;
     ImageButton btPlay, btPrevious, btNext, btfastB, btfastF;
@@ -93,6 +107,7 @@ public class Player extends AppCompatActivity implements View.OnClickListener {
             playN();
         }
     };
+
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
@@ -134,74 +149,53 @@ public class Player extends AppCompatActivity implements View.OnClickListener {
                 mp.release();
             }
         }
-            im = (CircleImageView) findViewById(R.id.thumb);
-            context = getApplicationContext();
-            playerToolbar = (Toolbar) findViewById(R.id.playerToolbar);
-            btPlay.setOnClickListener(this);
-            btPrevious.setOnClickListener(this);
-            btNext.setOnClickListener(this);
-            btfastF.setOnClickListener(this);
-            btfastB.setOnClickListener(this);
-            Intent intent = getIntent();
-            Bundle b = intent.getExtras();
-            mySongs = (List) intent.getSerializableExtra("songList");
-            position = b.getInt("position") ;
-            if (position == -1) {
-                position = mySongs.size() - 1;
-            }
-            mode = b.getBoolean("shuffle", false);
-            Uri uri = Uri.parse(mySongs.get(position).getData());
-            mp = new MediaPlayer();
-            try {
-                mp.setDataSource(getApplicationContext(), uri);
-            } catch (IOException e) {
-                e.printStackTrace();
-            }
+        context = getApplicationContext();
+        playerToolbar = (Toolbar) findViewById(R.id.playerToolbar);
+        btPlay.setOnClickListener(this);
+        btPrevious.setOnClickListener(this);
+        btNext.setOnClickListener(this);
+        btfastF.setOnClickListener(this);
+        btfastB.setOnClickListener(this);
+        Intent intent = getIntent();
+        Bundle b = intent.getExtras();
+        mySongs = (List)intent.getSerializableExtra("songList");
+        position = b.getInt("position");
+        mode = b.getBoolean("shuffle", false);
+        Uri uri = Uri.parse(mySongs.get(position).getData());
+        mp = new MediaPlayer();
+        try {
+            mp.setDataSource(getApplicationContext(), uri);
+        } catch (IOException e) {
+            e.printStackTrace();
+        }
         try {
             mp.prepare();
         } catch (IOException e) {
             e.printStackTrace();
         }
-//        mp.start();
-        startServiceMethod(position);
+        startServiceMethod();
         updateSeekBar.start();
+        updateImage(position);
+        tv2.setText(updateTime(mp));
+        playerToolbar.setTitle(mySongs.get(position).getTitle());
+        mp.setOnCompletionListener(next);
+        sb.setOnSeekBarChangeListener(new SeekBar.OnSeekBarChangeListener() {
+            @Override
+            public void onProgressChanged(SeekBar seekBar, int progress, boolean fromUser) {
+            }
 
-        long albumID = Integer.parseInt(mySongs.get(position).getAlbumId());
-            Uri uriArt = ContentUris.withAppendedId(sArtworkUri, albumID);
-            Glide.with(context).load(uriArt).error(R.mipmap.music)
-                    .crossFade().centerCrop().into(im);
+            @Override
+            public void onStartTrackingTouch(SeekBar seekBar) {
 
-            Glide.with(context).load(uriArt).error(R.mipmap.music).bitmapTransform(new BlurTransformation(context))
-                    .crossFade().into(new SimpleTarget<GlideDrawable>() {
-                @Override
-                public void onResourceReady(GlideDrawable resource,
-                                            GlideAnimation<? super GlideDrawable> glideAnimation) {
-                    Drawable drawable = resource;
-                    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.JELLY_BEAN) {
-                        rl.setBackground(drawable);
-                    }
-                }
-            });
-            tv2.setText(updateTime(mp));
-            playerToolbar.setTitle(mySongs.get(position).getTitle());
-            mp.setOnCompletionListener(next);
-            sb.setOnSeekBarChangeListener(new SeekBar.OnSeekBarChangeListener() {
-                @Override
-                public void onProgressChanged(SeekBar seekBar, int progress, boolean fromUser) {
-                }
+            }
 
-                @Override
-                public void onStartTrackingTouch(SeekBar seekBar) {
-
-                }
-
-                @Override
-                public void onStopTrackingTouch(SeekBar seekBar) {
-                    mHandler.post(updateUI);
-                    mp.seekTo(seekBar.getProgress());
-                }
-            });
-        }
+            @Override
+            public void onStopTrackingTouch(SeekBar seekBar) {
+                mHandler.post(updateUI);
+                mp.seekTo(seekBar.getProgress());
+            }
+        });
+    }
 
     @Override
     public void onClick(View v) {
@@ -228,14 +222,13 @@ public class Player extends AppCompatActivity implements View.OnClickListener {
                 break;
         }
     }
-
     public void play() {
-            try {
-                btPlay.setImageResource(R.drawable.pause);
-                mp.start();
-            } catch (Exception e) {
-                e.printStackTrace();
-            }
+        try {
+            btPlay.setImageResource(R.drawable.pause);
+            mp.start();
+        } catch (Exception e) {
+            e.printStackTrace();
+        }
 
     }
 
@@ -253,6 +246,7 @@ public class Player extends AppCompatActivity implements View.OnClickListener {
     }
 
     public void playN() {
+//        stopServiceMethod();
         mp.stop();
         mp.release();
         if (mode) {
@@ -261,66 +255,59 @@ public class Player extends AppCompatActivity implements View.OnClickListener {
         } else {
             position = (position + 1) % mySongs.size();
         }
-        long  albumID = Integer.parseInt(mySongs.get(position).getAlbumId());
-        Uri uriArt = ContentUris.withAppendedId(sArtworkUri, albumID);
-        Glide.with(context).load(uriArt).error(R.mipmap.music)
-                .crossFade().centerCrop().into(im);
-        Glide.with(context).load(uriArt).error(R.mipmap.music).bitmapTransform(new BlurTransformation(context))
-                .crossFade().into(new SimpleTarget<GlideDrawable>() {
-            @Override
-            public void onResourceReady(GlideDrawable resource,
-                                        GlideAnimation<? super GlideDrawable> glideAnimation) {
-                Drawable drawable = resource;
-                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.JELLY_BEAN) {
-                    rl.setBackground(drawable);
-                }
-            }
-        });
-        startServiceMethod(position);
+        updateImage(position);
         Uri uri2 = Uri.parse(mySongs.get(position).getData());
         mp = MediaPlayer.create(getApplicationContext(), uri2);
         sb.setMax(mp.getDuration());
         btPlay.setImageResource(R.drawable.pause);
         tv2.setText(updateTime(mp));
         playerToolbar.setTitle(mySongs.get(position).getTitle());
-//        mp.start();
-        updateSeekBar.start();
+       // updateSeekBar.destroy();
+//        updateSeekBar.start();
         mp.setOnCompletionListener(next);
+        startServiceMethod();
     }
 
     public void playP() {
         try {
+//            stopServiceMethod();
             mp.stop();
             mp.release();
             position = (position - 1 < 0) ? mySongs.size() - 1 : position - 1;
-            long  albumID = Integer.parseInt(mySongs.get(position).getAlbumId());
-            Uri uriArt = ContentUris.withAppendedId(sArtworkUri, albumID);
-            Glide.with(context).load(uriArt).error(R.mipmap.music)
-                    .crossFade().centerCrop().into(im);
-            Glide.with(context).load(uriArt).error(R.mipmap.music).bitmapTransform(new BlurTransformation(context))
-                    .crossFade().into(new SimpleTarget<GlideDrawable>() {
-                @Override
-                public void onResourceReady(GlideDrawable resource,
-                                            GlideAnimation<? super GlideDrawable> glideAnimation) {
-                    Drawable drawable = resource;
-                    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.JELLY_BEAN) {
-                        rl.setBackground(drawable);
-                    }
-                }
-            });
-            startServiceMethod(position);
+            updateImage(position);
             Uri uri1 = Uri.parse(mySongs.get(position).getData());
             mp = MediaPlayer.create(getApplicationContext(), uri1);
             sb.setMax(mp.getDuration());
-            updateSeekBar.start();
-//            mp.start();
             btPlay.setImageResource(R.drawable.pause);
             tv2.setText(updateTime(mp));
             playerToolbar.setTitle(mySongs.get(position).getTitle());
             mp.setOnCompletionListener(next);
+            startServiceMethod();
         } catch (Exception e) {
             e.printStackTrace();
         }
+    }
+
+    public void updatePlayerBar(Bitmap bitmap) {
+        Palette.from(bitmap).generate(new Palette.PaletteAsyncListener() {
+            public void onGenerated(Palette palette) {
+                Palette.Swatch swatch = palette.getDominantSwatch();
+                Palette.Swatch sw = palette.getMutedSwatch();
+                if (swatch == null || sw == null)
+                    swatch = palette.getMutedSwatch();
+                    sw = palette.getDarkMutedSwatch();// Sometimes vibrant swatch is not available
+                if (swatch != null || sw !=null) {
+                    // Set the background color of the player bar based on the swatch color
+                    playerToolbar.setBackgroundColor(swatch.getRgb());
+                    setStatusBarColor(sw.getRgb());
+                    // Update the track's title with the proper title text color
+                    tv1.setTextColor(swatch.getBodyTextColor());
+                    tv2.setTextColor(swatch.getBodyTextColor());
+                    // Update the artist name with the proper body text color
+//                    mArtist.setTextColor(swatch.getBodyTextColor());
+                }
+            }
+        });
     }
 
     public String updateTime(MediaPlayer mp) {
@@ -340,8 +327,50 @@ public class Player extends AppCompatActivity implements View.OnClickListener {
             }
         }
     };
-    void startServiceMethod(int pos){
-        inte = new Intent(this,PlayerService.class);
+
+    void startServiceMethod() {
+        inte = new Intent(this, PlayerService.class);
         startService(inte);
+    }
+    void stopServiceMethod(){
+        inte = new Intent(this, PlayerService.class);
+        stopService(inte);
+    }
+
+    public void setStatusBarColor(int color) {
+        Window window = this.getWindow();
+        window.clearFlags(WindowManager.LayoutParams.FLAG_TRANSLUCENT_STATUS);
+        window.addFlags(WindowManager.LayoutParams.FLAG_DRAWS_SYSTEM_BAR_BACKGROUNDS);
+        window.setStatusBarColor(color);
+    }
+    void updateImage(int position) {
+        long albumID = Integer.parseInt(mySongs.get(position).getAlbumId());
+        Uri uriArt = ContentUris.withAppendedId(sArtworkUri, albumID);
+//        Glide.with(context).load(uriArt).error(R.mipmap.music).into(im);
+        Glide.with(context).load(uriArt).error(R.drawable.dj).bitmapTransform(new BlurTransformation(context))
+                .crossFade().listener(new RequestListener<Uri, GlideDrawable>() {
+            @Override
+            public boolean onException(Exception e, Uri model, Target<GlideDrawable> target, boolean isFirstResource) {
+                if (isFirstResource) {
+                    Glide.with(context).load(R.drawable.dj).placeholder(R.drawable.dj).error(R.drawable.dj).into(target);
+                }
+                return true;
+            }
+
+            @Override
+            public boolean onResourceReady(GlideDrawable resource, Uri model, Target<GlideDrawable> target, boolean isFromMemoryCache, boolean isFirstResource) {
+                return false;
+            }
+        }).into(new SimpleTarget<GlideDrawable>() {
+            @Override
+            public void onResourceReady(GlideDrawable resource,
+                                        GlideAnimation<? super GlideDrawable> glideAnimation) {
+                if (resource instanceof GlideBitmapDrawable) {
+                    bmp = ((GlideBitmapDrawable) resource).getBitmap();
+                    updatePlayerBar(bmp);
+                }
+                rl.setBackground(resource);
+            }
+        });
     }
 }
