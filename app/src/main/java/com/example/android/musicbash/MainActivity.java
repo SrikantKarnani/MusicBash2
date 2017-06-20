@@ -72,12 +72,9 @@ import static com.example.android.musicbash.R.layout.fragment_blank;
 public class MainActivity extends AppCompatActivity {
     private static final int REQUEST_READABLE_CODE = 144 ;
     private static final int REQUEST_PERMISSION_WRITE = 1001;
-    RecyclerView lv;
     Boolean shuf = false;
     List<songs> songsObject;
     Intent play;
-    recylcerAdapter ar;
-    Cursor cursor;
     private boolean permissionGranted;
 
     @Override
