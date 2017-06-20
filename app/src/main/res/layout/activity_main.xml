@@ -9,13 +9,13 @@
 
     <include layout="@layout/toolbar"
         android:id="@+id/my_toolbar1"/>
-    <android.support.v7.widget.RecyclerView
+    <FrameLayout
         android:layout_width="match_parent"
         android:layout_height="match_parent"
-        android:id="@+id/lvPlaylist"
-        app:layoutManager="LinearLayoutManager"
         android:layout_below="@id/my_toolbar1"
-        />
+        android:id="@+id/frag_container">
+    </FrameLayout>
+
     <android.support.design.widget.FloatingActionButton
             android:id="@+id/myFAB"
             android:layout_width="64dp"
