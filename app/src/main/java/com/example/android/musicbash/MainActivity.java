@@ -84,18 +84,7 @@ public class MainActivity extends AppCompatActivity {
         setContentView(R.layout.activity_main);
         Fragment fragy = BlankFragment.newInstance();
         getSupportFragmentManager().beginTransaction().add(R.id.frag_container,fragy).commit();
-        FloatingActionButton fab = (FloatingActionButton) findViewById(R.id.myFAB);
-        fab.setOnClickListener(new View.OnClickListener() {
-            @Override
-            public void onClick(View view) {
-                Random r = new Random();
-                int position = r.nextInt(songsObject.size()) + 1;
-                play = new Intent(getApplicationContext(), Player.class);
-                shuf = true;
-                startActivity(play.putExtra("pos", position).putExtra("songList", (Serializable) songsObject).putExtra("shuffle", shuf));
-            }
 
-        });
         Toolbar tb1 = (Toolbar) findViewById(R.id.my_toolbar1);
         setSupportActionBar(tb1);
         getSupportActionBar().setDisplayShowTitleEnabled(true);

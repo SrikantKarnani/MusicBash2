@@ -4,6 +4,7 @@ import android.content.Intent;
 import android.database.Cursor;
 import android.os.Bundle;
 import android.provider.MediaStore;
+import android.support.design.widget.FloatingActionButton;
 import android.support.v4.app.Fragment;
 import android.support.v7.widget.RecyclerView;
 import android.support.v7.widget.SearchView;
@@ -13,8 +14,10 @@ import android.view.MenuInflater;
 import android.view.View;
 import android.view.ViewGroup;
 
+import java.io.Serializable;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Random;
 
 import static android.content.Context.SEARCH_SERVICE;
 /**
@@ -25,6 +28,8 @@ public class BlankFragment extends Fragment {
     List<songs> songsObject;
     recylcerAdapter ar;
     static Cursor cursor;
+    Boolean shuf = false;
+    Intent play;
     public BlankFragment() {
         // Required empty public constructor
     }
@@ -62,6 +67,24 @@ public class BlankFragment extends Fragment {
         lv.setNestedScrollingEnabled(false);
         return view;
     }
+
+    @Override
+    public void onStart() {
+        super.onStart();
+        FloatingActionButton fab = (FloatingActionButton) getActivity().findViewById(R.id.myFAB);
+        fab.setOnClickListener(new View.OnClickListener() {
+            @Override
+            public void onClick(View view) {
+                Random r = new Random();
+                int position = r.nextInt(songsObject.size()) + 1;
+                play = new Intent(getContext(), Player.class);
+                shuf = true;
+                startActivity(play.putExtra("pos", position).putExtra("songList", (Serializable) songsObject).putExtra("shuffle", shuf));
+            }
+
+        });
+    }
+
     void addSongs(Cursor cur){
         cur.moveToFirst();
         do {
