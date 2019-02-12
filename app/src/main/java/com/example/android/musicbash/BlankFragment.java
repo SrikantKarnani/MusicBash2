@@ -25,7 +25,7 @@ import static android.content.Context.SEARCH_SERVICE;
  */
 public class BlankFragment extends Fragment {
     RecyclerView lv;
-    List<songs> songsObject;
+    List<Songs> songsObject;
     recylcerAdapter ar;
     static Cursor cursor;
     Boolean shuf = false;
@@ -88,7 +88,7 @@ public class BlankFragment extends Fragment {
     void addSongs(Cursor cur){
         cur.moveToFirst();
         do {
-            songsObject.add(new songs(cur.getString(cur.getColumnIndex(MediaStore.Audio.Media._ID)),
+            songsObject.add(new Songs(cur.getString(cur.getColumnIndex(MediaStore.Audio.Media._ID)),
                     cur.getString(cur.getColumnIndex(MediaStore.Audio.Media.TITLE)),
                     cur.getString(cur.getColumnIndex(MediaStore.Audio.Media.ALBUM)),
                     cur.getString(cur.getColumnIndex(MediaStore.Audio.Media.DATA)),
@@ -97,6 +97,7 @@ public class BlankFragment extends Fragment {
             ));
         }while (cur.moveToNext());
     }
+//Hello Bro
 
     @Override
     public void onCreateOptionsMenu(Menu menu, MenuInflater inflater) {
@@ -114,8 +115,8 @@ public class BlankFragment extends Fragment {
             @Override
             public boolean onQueryTextChange(String newText) {
                 newText = newText.toLowerCase();
-                List<songs> newList = new ArrayList<>();
-                for(songs name : songsObject){
+                List<Songs> newList = new ArrayList<>();
+                for(Songs name : songsObject){
                     if((name.getTitle().toLowerCase()).contains(newText)){
                         newList.add(name);
                     }

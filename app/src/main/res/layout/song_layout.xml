@@ -1,5 +1,12 @@
 <?xml version="1.0" encoding="utf-8"?>
-<RelativeLayout xmlns:android="http://schemas.android.com/apk/res/android"
+<layout xmlns:bind="http://schemas.android.com/tools">
+    <data>
+        <variable
+            name="song"
+            type="com.example.android.musicbash.Songs"/>
+    </data>
+<android.support.constraint.ConstraintLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
     android:id="@+id/root"
     android:layout_width="match_parent"
     android:layout_height="wrap_content"
@@ -9,18 +16,25 @@
         android:id="@+id/image"
         android:layout_width="50dp"
         android:layout_height="50dp"
-        android:layout_centerVertical="true"
+        bind:imageUrl="@{song.uri}"
+        app:layout_constraintTop_toTopOf="parent"
+        app:layout_constraintBottom_toBottomOf="parent"
+        app:layout_constraintStart_toStartOf="parent"
         android:padding="5dp" />
 
     <TextView
         android:id="@+id/textView2"
-        android:layout_width="match_parent"
+        android:layout_width="0dp"
         android:layout_height="50dp"
-        android:layout_toRightOf="@id/image"
+        app:layout_constraintTop_toTopOf="parent"
+        app:layout_constraintBottom_toBottomOf="parent"
+        app:layout_constraintStart_toEndOf="@id/image"
+        app:layout_constraintEnd_toEndOf="parent"
         android:maxLines="1"
         android:layout_centerVertical="true"
         android:padding="5dp"
-        android:text=""
+        android:text="@{song.title}"
         android:textColor="#ffe0b2"
         android:textSize="22sp" />
-</RelativeLayout>
+</android.support.constraint.ConstraintLayout>
+</layout>
